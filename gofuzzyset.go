@@ -1,6 +1,8 @@
 package gofuzzyset
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"math"
 	"regexp"
@@ -182,6 +184,80 @@ func (f FuzzySet) findMatchesForGramSize(value string, gramSize int) []Match {
 	}
 
 	return newResults
+}
+
+func (f FuzzySet) GobEncode() ([]byte, error) {
+	buffer := bytes.NewBuffer(nil)
+	enc := gob.NewEncoder(buffer)
+
+	fuzzySetRepr := FuzzySetRepresentation{
+		ItemsByGramSize: f.itemsByGramSize,
+		MatchDict:       f.matchDict,
+		ExactSet:        f.exactSet,
+		UseLevenshtein:  f.useLevenshtein,
+		GramSizeLower:   f.gramSizeLower,
+		GramSizeUpper:   f.gramSizeUpper,
+		MinScore:        f.minScore,
+	}
+
+	if err := enc.Encode(fuzzySetRepr); err != nil {
+		return nil, fmt.Errorf("fuzzyset: %v", err)
+	}
+
+	return buffer.Bytes(), nil
+}
+
+func (f FuzzySet) GobDecode(input []byte) error {
+	buffer := bytes.NewBuffer(input)
+	dec := gob.NewDecoder(buffer)
+
+	fuzzySetRepr := FuzzySetRepresentation{}
+
+	if err := dec.Decode(&fuzzySetRepr); err != nil {
+		return fmt.Errorf("fuzzyset: %v", err)
+	}
+
+	f.itemsByGramSize = fuzzySetRepr.ItemsByGramSize
+	f.matchDict = fuzzySetRepr.MatchDict
+	f.exactSet = fuzzySetRepr.ExactSet
+	f.useLevenshtein = fuzzySetRepr.UseLevenshtein
+	f.gramSizeLower = fuzzySetRepr.GramSizeLower
+	f.gramSizeUpper = fuzzySetRepr.GramSizeUpper
+	f.minScore = fuzzySetRepr.MinScore
+
+	return nil
+}
+
+func (i item) GobEncode() ([]byte, error) {
+	buffer := bytes.NewBuffer(nil)
+	enc := gob.NewEncoder(buffer)
+
+	itemRepr := ItemRepresentation{
+		NormalizedValue: i.normalizedValue,
+		VectorNormal:    i.vectorNormal,
+	}
+
+	if err := enc.Encode(itemRepr); err != nil {
+		return nil, fmt.Errorf("fuzzyset: %v", err)
+	}
+
+	return buffer.Bytes(), nil
+}
+
+func (i item) GobDecode(input []byte) error {
+	buffer := bytes.NewBuffer(input)
+	dec := gob.NewDecoder(buffer)
+
+	itemRepr := ItemRepresentation{}
+
+	if err := dec.Decode(&itemRepr); err != nil {
+		return fmt.Errorf("fuzzyset: %v", err)
+	}
+
+	i.normalizedValue = itemRepr.NormalizedValue
+	i.vectorNormal = itemRepr.VectorNormal
+
+	return nil
 }
 
 func normalizeStr(str string) string {
