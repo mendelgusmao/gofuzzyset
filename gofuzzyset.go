@@ -1,6 +1,8 @@
 package gofuzzyset
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"math"
 	"regexp"
@@ -21,28 +23,43 @@ type FuzzySet struct {
 	exactSet map[string]string
 
 	useLevenshtein bool
-	gramSizeLower int
-	gramSizeUpper int
-	minScore float64
+	gramSizeLower  int
+	gramSizeUpper  int
+	minScore       float64
+}
+
+type FuzzySetRepresentation struct {
+	ItemsByGramSize map[int][]item
+	MatchDict       map[string][][]int
+	ExactSet        map[string]string
+	UseLevenshtein  bool
+	GramSizeLower   int
+	GramSizeUpper   int
+	MinScore        float64
 }
 
 // For each word in the dataset, "normaize" it and calculate the vector (root of sum of squares of gram counts)
 type item struct {
 	normalizedValue string
-	vectorNormal float64
+	vectorNormal    float64
+}
+
+type ItemRepresentation struct {
+	NormalizedValue string
+	VectorNormal    float64
 }
 
 type Match struct {
-	Word string
+	Word  string
 	Score float64
 }
 
 func New(data []string, useLevenshtein bool, gramSizeLower int, gramSizeUpper int, minScore float64) *FuzzySet {
 	f := FuzzySet{
 		useLevenshtein: useLevenshtein,
-		gramSizeLower: gramSizeLower,
-		gramSizeUpper: gramSizeUpper,
-		minScore: minScore,
+		gramSizeLower:  gramSizeLower,
+		gramSizeUpper:  gramSizeUpper,
+		minScore:       minScore,
 	}
 
 	// Initialize items structs
@@ -66,7 +83,7 @@ func (f FuzzySet) Add(value string) {
 	normalizedValue := normalizeStr(value)
 
 	// If this normaized value is in the exact set already, then ignore
-	if _, found := f.exactSet[normalizedValue];found {
+	if _, found := f.exactSet[normalizedValue]; found {
 		return
 	}
 
@@ -78,9 +95,9 @@ func (f FuzzySet) Add(value string) {
 		sumOfSquareGramCounts := 0.0
 
 		for gram, gramCount := range gramsByCount {
-			sumOfSquareGramCounts = sumOfSquareGramCounts + float64(gramCount * gramCount)
+			sumOfSquareGramCounts = sumOfSquareGramCounts + float64(gramCount*gramCount)
 
-			if _, found := f.matchDict[gram];found {
+			if _, found := f.matchDict[gram]; found {
 				f.matchDict[gram] = append(f.matchDict[gram], []int{index, gramCount})
 			} else {
 				f.matchDict[gram] = [][]int{{index, gramCount}}
@@ -95,19 +112,18 @@ func (f FuzzySet) Add(value string) {
 }
 
 /*
-	Search for a value with a score of at least minScore...return the found value along w/ the score
- */
+Search for a value with a score of at least minScore...return the found value along w/ the score
+*/
 func (f FuzzySet) Get(value string) []Match {
 	results := make([]Match, 0)
 
 	// Check for exact match
-	if exactMatch, found := f.exactSet[normalizeStr(value)];found {
+	if exactMatch, found := f.exactSet[normalizeStr(value)]; found {
 		return []Match{{Word: exactMatch, Score: 1.0}}
 	}
 
-
 	// start with high gram size and if there are no results, go to lower gram sizes
-	for gramSize := f.gramSizeUpper;gramSize >= f.gramSizeLower;gramSize-- {
+	for gramSize := f.gramSizeUpper; gramSize >= f.gramSizeLower; gramSize-- {
 		results = f.findMatchesForGramSize(value, gramSize)
 
 		if len(results) > 0 {
@@ -128,15 +144,15 @@ func (f FuzzySet) findMatchesForGramSize(value string, gramSize int) []Match {
 	sumOfSquareGramCounts := 0.0
 
 	for gram, gramCount := range gramCountsByGram {
-		sumOfSquareGramCounts = sumOfSquareGramCounts + float64(gramCount * gramCount)
+		sumOfSquareGramCounts = sumOfSquareGramCounts + float64(gramCount*gramCount)
 
-		if gramMatchDict, found := f.matchDict[gram];found {
-			for i := 0;i < len(gramMatchDict);i++ {
+		if gramMatchDict, found := f.matchDict[gram]; found {
+			for i := 0; i < len(gramMatchDict); i++ {
 				index := gramMatchDict[i][0]
 				otherGramCount := gramMatchDict[i][1]
 
-				if _, found := matches[index];found {
-					matches[index] = matches[index] + gramCount * otherGramCount
+				if _, found := matches[index]; found {
+					matches[index] = matches[index] + gramCount*otherGramCount
 				} else {
 					matches[index] = gramCount * otherGramCount
 				}
@@ -184,6 +200,80 @@ func (f FuzzySet) findMatchesForGramSize(value string, gramSize int) []Match {
 	return newResults
 }
 
+func (f FuzzySet) GobEncode() ([]byte, error) {
+	buffer := bytes.NewBuffer(nil)
+	enc := gob.NewEncoder(buffer)
+
+	fuzzySetRepr := FuzzySetRepresentation{
+		ItemsByGramSize: f.itemsByGramSize,
+		MatchDict:       f.matchDict,
+		ExactSet:        f.exactSet,
+		UseLevenshtein:  f.useLevenshtein,
+		GramSizeLower:   f.gramSizeLower,
+		GramSizeUpper:   f.gramSizeUpper,
+		MinScore:        f.minScore,
+	}
+
+	if err := enc.Encode(fuzzySetRepr); err != nil {
+		return nil, fmt.Errorf("fuzzyset: %v", err)
+	}
+
+	return buffer.Bytes(), nil
+}
+
+func (f FuzzySet) GobDecode(input []byte) error {
+	buffer := bytes.NewBuffer(input)
+	dec := gob.NewDecoder(buffer)
+
+	fuzzySetRepr := FuzzySetRepresentation{}
+
+	if err := dec.Decode(&fuzzySetRepr); err != nil {
+		return fmt.Errorf("fuzzyset: %v", err)
+	}
+
+	f.itemsByGramSize = fuzzySetRepr.ItemsByGramSize
+	f.matchDict = fuzzySetRepr.MatchDict
+	f.exactSet = fuzzySetRepr.ExactSet
+	f.useLevenshtein = fuzzySetRepr.UseLevenshtein
+	f.gramSizeLower = fuzzySetRepr.GramSizeLower
+	f.gramSizeUpper = fuzzySetRepr.GramSizeUpper
+	f.minScore = fuzzySetRepr.MinScore
+
+	return nil
+}
+
+func (i item) GobEncode() ([]byte, error) {
+	buffer := bytes.NewBuffer(nil)
+	enc := gob.NewEncoder(buffer)
+
+	itemRepr := ItemRepresentation{
+		NormalizedValue: i.normalizedValue,
+		VectorNormal:    i.vectorNormal,
+	}
+
+	if err := enc.Encode(itemRepr); err != nil {
+		return nil, fmt.Errorf("fuzzyset: %v", err)
+	}
+
+	return buffer.Bytes(), nil
+}
+
+func (i item) GobDecode(input []byte) error {
+	buffer := bytes.NewBuffer(input)
+	dec := gob.NewDecoder(buffer)
+
+	itemRepr := ItemRepresentation{}
+
+	if err := dec.Decode(&itemRepr); err != nil {
+		return fmt.Errorf("fuzzyset: %v", err)
+	}
+
+	i.normalizedValue = itemRepr.NormalizedValue
+	i.vectorNormal = itemRepr.VectorNormal
+
+	return nil
+}
+
 func normalizeStr(str string) string {
 	return strings.ToLower(str)
 }
@@ -225,7 +315,7 @@ func distance(str1, str2 string) float64 {
 		return 0
 	}
 
-	d := levenshtein(str1, str2);
+	d := levenshtein(str1, str2)
 
 	if len(str1) > len(str2) {
 		return 1.0 - float64(d)/float64(len(str1))
@@ -246,8 +336,8 @@ func iterateGrams(value string, gramSize int) []string {
 		simplified = simplified + strings.Repeat("-", lenDiff)
 	}
 
-	for i := 0; i < len(simplified) - gramSize + 1; i++ {
-		gram := simplified[i:i + gramSize]
+	for i := 0; i < len(simplified)-gramSize+1; i++ {
+		gram := simplified[i : i+gramSize]
 		grams = append(grams, gram)
 	}
 
@@ -260,7 +350,7 @@ func gramCounter(value string, gramSize int) map[string]int {
 	grams := iterateGrams(value, gramSize)
 
 	for i := range grams {
-		if _, found := results[grams[i]];found {
+		if _, found := results[grams[i]]; found {
 			results[grams[i]] = results[grams[i]] + 1
 		} else {
 			results[grams[i]] = 1
