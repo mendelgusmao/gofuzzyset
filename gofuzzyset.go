@@ -221,7 +221,7 @@ func (f FuzzySet) GobEncode() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (f FuzzySet) GobDecode(input []byte) error {
+func (f *FuzzySet) GobDecode(input []byte) error {
 	buffer := bytes.NewBuffer(input)
 	dec := gob.NewDecoder(buffer)
 
@@ -258,7 +258,7 @@ func (i item) GobEncode() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (i item) GobDecode(input []byte) error {
+func (i *item) GobDecode(input []byte) error {
 	buffer := bytes.NewBuffer(input)
 	dec := gob.NewDecoder(buffer)
 
