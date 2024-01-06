@@ -2,7 +2,7 @@ package gofuzzyset
 
 import (
 	"bytes"
-	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
@@ -200,9 +200,9 @@ func (f FuzzySet) findMatchesForGramSize(value string, gramSize int) []Match {
 	return newResults
 }
 
-func (f FuzzySet) GobEncode() ([]byte, error) {
+func (f FuzzySet) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBuffer(nil)
-	enc := gob.NewEncoder(buffer)
+	enc := json.NewEncoder(buffer)
 
 	fuzzySetRepr := FuzzySetRepresentation{
 		ItemsByGramSize: f.itemsByGramSize,
@@ -221,9 +221,9 @@ func (f FuzzySet) GobEncode() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (f *FuzzySet) GobDecode(input []byte) error {
+func (f *FuzzySet) UnmarshalJSON(input []byte) error {
 	buffer := bytes.NewBuffer(input)
-	dec := gob.NewDecoder(buffer)
+	dec := json.NewDecoder(buffer)
 
 	fuzzySetRepr := FuzzySetRepresentation{}
 
@@ -242,9 +242,9 @@ func (f *FuzzySet) GobDecode(input []byte) error {
 	return nil
 }
 
-func (i item) GobEncode() ([]byte, error) {
+func (i item) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBuffer(nil)
-	enc := gob.NewEncoder(buffer)
+	enc := json.NewEncoder(buffer)
 
 	itemRepr := ItemRepresentation{
 		NormalizedValue: i.normalizedValue,
@@ -258,9 +258,9 @@ func (i item) GobEncode() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (i *item) GobDecode(input []byte) error {
+func (i *item) UnmarshalJSON(input []byte) error {
 	buffer := bytes.NewBuffer(input)
-	dec := gob.NewDecoder(buffer)
+	dec := json.NewDecoder(buffer)
 
 	itemRepr := ItemRepresentation{}
 
