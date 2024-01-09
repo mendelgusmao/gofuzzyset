@@ -2,12 +2,13 @@ package gofuzzyset
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
 	"sort"
 	"strings"
+
+	msgpack "github.com/vmihailenco/msgpack/v5"
 )
 
 // This is a re-implementation of the javascript fuzzyset thingy
@@ -200,9 +201,9 @@ func (f FuzzySet) findMatchesForGramSize(value string, gramSize int) []Match {
 	return newResults
 }
 
-func (f FuzzySet) MarshalJSON() ([]byte, error) {
+func (f FuzzySet) MarshalMsgpack() ([]byte, error) {
 	buffer := bytes.NewBuffer(nil)
-	enc := json.NewEncoder(buffer)
+	enc := msgpack.NewEncoder(buffer)
 
 	fuzzySetRepr := FuzzySetRepresentation{
 		ItemsByGramSize: f.itemsByGramSize,
@@ -221,9 +222,9 @@ func (f FuzzySet) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (f *FuzzySet) UnmarshalJSON(input []byte) error {
+func (f *FuzzySet) UnmarshalMsgpack(input []byte) error {
 	buffer := bytes.NewBuffer(input)
-	dec := json.NewDecoder(buffer)
+	dec := msgpack.NewDecoder(buffer)
 
 	fuzzySetRepr := FuzzySetRepresentation{}
 
@@ -242,9 +243,9 @@ func (f *FuzzySet) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-func (i item) MarshalJSON() ([]byte, error) {
+func (i item) MarshalMsgpack() ([]byte, error) {
 	buffer := bytes.NewBuffer(nil)
-	enc := json.NewEncoder(buffer)
+	enc := msgpack.NewEncoder(buffer)
 
 	itemRepr := ItemRepresentation{
 		NormalizedValue: i.normalizedValue,
@@ -258,9 +259,9 @@ func (i item) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (i *item) UnmarshalJSON(input []byte) error {
+func (i *item) UnmarshalMsgpack(input []byte) error {
 	buffer := bytes.NewBuffer(input)
-	dec := json.NewDecoder(buffer)
+	dec := msgpack.NewDecoder(buffer)
 
 	itemRepr := ItemRepresentation{}
 
