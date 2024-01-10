@@ -17,7 +17,7 @@ type FuzzySet struct {
 
 	// For each gram track index and gramcount
 	// Key is gram, value is something
-	matchDict map[string][][]int
+	matchDict map[string][]uint16
 
 	// key = normalized value and value = value (e.g. exactSet["hello"] = "Hello"
 	exactSet map[string]string
@@ -30,7 +30,7 @@ type FuzzySet struct {
 
 type FuzzySetRepresentation struct {
 	ItemsByGramSize map[int][]item
-	MatchDict       map[string][][]int
+	MatchDict       map[string][]uint16
 	ExactSet        map[string]string
 	UseLevenshtein  bool
 	GramSizeLower   int
@@ -64,7 +64,7 @@ func New(data []string, useLevenshtein bool, gramSizeLower int, gramSizeUpper in
 
 	// Initialize items structs
 	f.itemsByGramSize = make(map[int][]item)
-	f.matchDict = make(map[string][][]int)
+	f.matchDict = make(map[string][]uint16)
 	f.exactSet = make(map[string]string)
 
 	for gramSize := gramSizeLower; gramSize <= gramSizeUpper; gramSize++ {
@@ -96,11 +96,12 @@ func (f FuzzySet) Add(value string) {
 
 		for gram, gramCount := range gramsByCount {
 			sumOfSquareGramCounts = sumOfSquareGramCounts + float64(gramCount*gramCount)
+			reference := uint16(index)<<8 | uint16(gramCount)
 
 			if _, found := f.matchDict[gram]; found {
-				f.matchDict[gram] = append(f.matchDict[gram], []int{index, gramCount})
+				f.matchDict[gram] = append(f.matchDict[gram], uint16(reference))
 			} else {
-				f.matchDict[gram] = [][]int{{index, gramCount}}
+				f.matchDict[gram] = []uint16{reference}
 			}
 		}
 
@@ -136,7 +137,7 @@ func (f FuzzySet) Get(value string) []Match {
 
 func (f FuzzySet) findMatchesForGramSize(value string, gramSize int) []Match {
 	var results []Match
-	matches := make(map[int]int, 0)
+	matches := make(map[uint16]uint16, 0)
 
 	normalizedValue := normalizeStr(value)
 
@@ -148,8 +149,8 @@ func (f FuzzySet) findMatchesForGramSize(value string, gramSize int) []Match {
 
 		if gramMatchDict, found := f.matchDict[gram]; found {
 			for i := 0; i < len(gramMatchDict); i++ {
-				index := gramMatchDict[i][0]
-				otherGramCount := gramMatchDict[i][1]
+				index := gramMatchDict[i] >> 8
+				otherGramCount := gramMatchDict[i] & 0xFF
 
 				if _, found := matches[index]; found {
 					matches[index] = matches[index] + gramCount*otherGramCount
@@ -345,8 +346,8 @@ func iterateGrams(value string, gramSize int) []string {
 }
 
 // Results = map with grams as key and number of occurances as values
-func gramCounter(value string, gramSize int) map[string]int {
-	results := make(map[string]int)
+func gramCounter(value string, gramSize int) map[string]uint16 {
+	results := make(map[string]uint16)
 	grams := iterateGrams(value, gramSize)
 
 	for i := range grams {
